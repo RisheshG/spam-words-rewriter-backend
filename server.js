@@ -13,7 +13,6 @@ app.use(express.json());
 
 let spamWords = [];
 
-// Load spam words from CSV on server start
 fs.createReadStream(path.join(__dirname, './spam_words.csv'))
   .pipe(csv())
   .on('data', (row) => {
@@ -21,7 +20,6 @@ fs.createReadStream(path.join(__dirname, './spam_words.csv'))
     if (word) spamWords.push(word.toLowerCase());
   });
 
-// Function to fetch synonyms for a word (with fallback if no synonyms found)
 async function fetchSynonym(word) {
   try {
     const response = await axios.get('https://api.datamuse.com/words', {
@@ -47,7 +45,6 @@ async function fetchSynonym(word) {
   }
 }
 
-// Endpoint to highlight spam words and replace them with synonyms
 app.post('/highlight-spam', async (req, res) => {
   const { text } = req.body;
 
@@ -56,29 +53,25 @@ app.post('/highlight-spam', async (req, res) => {
   }
 
   try {
-    // Sort spam words by length to prevent partial matches
     const sortedSpamWords = spamWords
       .filter(Boolean)
       .sort((a, b) => b.length - a.length);
 
-    const foundSpamWords = new Set(); // Using Set to avoid duplicates
+    const foundSpamWords = new Set(); 
 
-    // Create a single regex pattern to match all spam words
     const regexParts = sortedSpamWords.map(escapeRegex);
     const combinedRegex = new RegExp(`\\b(${regexParts.join('|')})\\b`, 'gi');
 
     let highlightedText = text;
     let replacedText = text;
 
-    // Fetch synonyms concurrently using Promise.all
     const synonyms = await Promise.all(
       sortedSpamWords.map(async (word) => {
         const synonym = await fetchSynonym(word);
         return { word, synonym };
       })
     );
-
-    // Loop through each spam word and replace it
+    
     for (const { word, synonym } of synonyms) {
       const regex = new RegExp(`\\b${escapeRegex(word)}\\b`, 'gi');
       if (regex.test(text)) {
@@ -88,7 +81,6 @@ app.post('/highlight-spam', async (req, res) => {
       replacedText = replacedText.replace(regex, synonym);
     }
 
-    // Convert Set to array (DON'T join into string here - let frontend handle display formatting)
     const spamWordsArray = Array.from(foundSpamWords);
 
     res.json({ 
@@ -103,7 +95,6 @@ app.post('/highlight-spam', async (req, res) => {
   }
 });
 
-// Helper to escape regex special characters
 function escapeRegex(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
